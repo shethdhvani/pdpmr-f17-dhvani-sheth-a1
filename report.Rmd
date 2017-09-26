@@ -1,0 +1,137 @@
+---
+title: "A1 - Neighborhood Score: Benchmarking Report"
+author: "Dhvani Sheth"
+date: "September 21, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+```
+
+The k (neighborhood) considered here is 2
+
+### Explain the difference in the execution profiles among variants
+Sequential Variant
+
+In this, the program runs on only one main thread. Every subsequent execution step is processed after the previous step is processed.
+
+1.	Read all files one at a time. While reading each file, remove all characters except letters a to z and space.
+
+2.	Keep a count of total characters (henceforth characters and letters are used interchangeably) in a file. Also, keep a count of the number of occurrences of each letter in the file.
+
+3.	Both the above parameters are updated as we go through each file.
+
+4.	After all the files are processed, we have the total number of characters in the whole corpus.
+
+5.	We now also have the total occurrences of each character.
+
+6.	Now we calculate score of each letter. 
+
+7.	Iterate through each file one by one. Calculate word score and store it. Get neighborhood of every word in a file (for a repeating word, append the neighbors) and store it. 
+
+8.	Calculate the mean neighborhood score for each word in a file and store it in a hash map.
+
+9.	Do the above for each file. Now we have the neighborhood score of every word in each of the files.
+
+10.	Now go through the neighborhood score generated hash map and append the score for each word. 
+
+11.	Output the word and its mean score (we have score of the word from each file, thus get the mean) to a CSV file.
+
+
+Parallel Variant
+
+In this, the program is run in such a way that some parts of it are executed parallelly. We create a thread pool with number of threads varying from 2 to 16. So for example, if the thread pool size is 2, we have 2 threads running parallelly. We can create a thread pool of 20 threads too, however, internally the number of threads running in parallel is equal to the number of logical processors.
+
+1.	Read all files parallelly with the number of threads given as input. For each file, remove all the characters except letters a to z and space. Store this word in a list of string. Since we are storing it in one list, access to this list is synchronized meaning only one thread can access it at a time.
+
+2.	Now for each file in, keep the count of the total number of characters and the number of occurrences for each character for every thread. 
+
+3.	After all the threads have been executed, combine the number of occurrences for every character and the count of characters. Now get the score for each character.
+
+4.	Again, process all files in parallel. Calculate the word score. Get the neighbors of each word in a file. Calculate the mean neighborhood score of every word and store it for each thread.
+
+5.	After all the threads have completed executing, combine the scores of each word from every other file and output the word and its mean neighborhood score in a csv file.
+
+
+### Comment on the differences in performance of the sequential and parallel/concurrent variants
+
+Parallel/concurrent variants took less time than sequential. For k = 2, parallel version took 37% (the best reduction time among 2-16 threads) less time than sequential. 
+In sequential, after initial few iterations, the performance becomes stable.
+In parallel, for thread = 2, the performance was a little high. Then for threads 3, 4, 5; the performance was good. As the number of threads increased,  the performance deteriorated a little bit but not reaching to the same execution time as sequential.
+
+X-axis is the number of iterations. Y-axis is the execution time for each iteration in seconds.
+
+Graph for Sequential run:
+
+```{r, echo=FALSE}
+sf <- read.csv('sequentialTime.csv')
+ggplot(sf, aes(x=Iteration, y=Time)) + geom_path() + geom_point() + xlab("No. of Iterations") + ylab("Execution Time in Seconds")
+ggplot(sf, aes(x=Iteration, y=Time)) + geom_smooth(color='#FFC300') + xlab("No. of Iterations") + ylab("Execution Time in Seconds")
+```
+
+
+Graph for Parallel run:
+
+```{r, echo=FALSE}
+pf <- read.csv('parallelTime.csv')
+ggplot(pf, aes(x=ThreadNumber, y=Time)) + geom_path() + geom_point() + xlab("No. of Iterations") + ylab("Execution Time in Seconds")
+ggplot(pf, aes(x=ThreadNumber, y=Time)) + geom_smooth(color='#FFC300') + xlab("No. of Iterations") + ylab("Execution Time in Seconds")
+```
+
+### Comment on the impact of the number of executor threads on performance
+
+1.	Performance was optimal when the number of executor threads were in the range of - 3 to 8
+2.  As the number of threads increased, the execution time increased for threads 9 - 14 and then slightly dropped for threads 15 - 16. 
+3.	However, execution time was always less than sequential.
+4.	Performance depends on number of factors. One major factor is number of processors. As the processor can run only  processes at a time, as the number of threads increase, then the waiting time for a thread increases.
+5.	Also, in the program, there are I/O operations such as reading from the files and writing to a csv file that affects the performance. 
+6. Based on the graph, we can say that
+a. Increase in number of threads does not guarantee a performance increase
+b. Performance stabilizes for a particular number of threads. Thus a system is scalable only upto that point.
+
+Below is the mean for each of the threads 2 - 16
+```{r, echo=FALSE}
+aggregate(Time ~ ThreadNumber, pf, mean)
+```
+
+
+### Explain which implementation variant and configuration have the best combination of performance and stability.
+
+
+Below is the mean for the sequential execution
+```{r, echo=FALSE}
+mean(sf$Time, na.rm = TRUE)
+```
+
+Below is the mean for the parallel execution
+```{r, echo=FALSE}
+mean(pf$Time, na.rm = TRUE)
+```
+
+From the results for k = 2, parallel implementation with number of threads = 4 (equal to the number of available processors) has the best combination of performance and stability. As the number of processors matches the threads, there is very minimal waiting time for a thread. Based on the means of sequential and parallel executions, the parallel variant is 11.7% better than sequential. Also in parallel if we consider the variant with the least mean time i.e. with threads = 4, it is 41.67% better than the sequential variant.
+
+### Specifications of the execution environment:
+Java version: Version 8 Update 111 (build 1.8.0_111-b14)
+
+OS version: 
+
+Edition: Windows 10 Home
+
+Version: 1703
+
+OS Build: 15063.608
+
+Hardware specs: 
+
+Processor: Intel Core i7-6500U
+
+RAM: 12GB
+
+Cores: 2
+
+Logical Processors: 4
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
